@@ -1,0 +1,3 @@
+# Placeholder for plant level 2 - Brote
+# This file represents the sprout stage of the plant
+# Replace with actual PNG image

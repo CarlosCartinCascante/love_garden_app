@@ -1,0 +1,3 @@
+# Placeholder for plant level 1 - Semilla
+# This file represents the seed stage of the plant
+# Replace with actual PNG image
