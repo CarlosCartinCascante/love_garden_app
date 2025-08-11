@@ -52,9 +52,11 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
       case 'tarde':
         return '¡Buenas tardes! ☀️';
       case 'noche':
-      case 'madrugada':
-      default:
         return '¡Buenas noches! 🌙';
+      case 'madrugada':
+        return '¡Buenas madrugadas! 🌙';
+      default:
+        return '¡Hola! 💚';
     }
   }
 
@@ -156,56 +158,68 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
           ),
         ],
       ),
-      body: Consumer<AppStateProvider>(
-        builder: (context, appState, child) {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight:
-                        constraints.maxHeight - 32, // Account for padding
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Greeting and date
-                      _buildGreetingCard(appState),
-                      const SizedBox(height: 20),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: Consumer<AppStateProvider>(
+          builder: (context, appState, child) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                await appState.checkPeriodAndRefresh(force: true);
+              },
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final bottomSafe = MediaQuery.of(context).padding.bottom;
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomSafe + 12),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 32,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Greeting and date
+                          _buildGreetingCard(appState),
+                          const SizedBox(height: 20),
 
-                      // Daily message
-                      _buildDailyMessageCard(appState),
-                      const SizedBox(height: 20),
+                          // Daily message
+                          _buildDailyMessageCard(appState),
+                          const SizedBox(height: 20),
 
-                      // Today's mood statistics
-                      _buildMoodStatsCard(appState),
-                      const SizedBox(height: 20),
+                          // Today's mood statistics
+                          _buildMoodStatsCard(appState),
+                          const SizedBox(height: 20),
 
-                      // Current mood and plant
-                      _buildMoodAndPlantCard(appState),
-                      const SizedBox(height: 20),
+                          // Current mood and plant
+                          _buildMoodAndPlantCard(appState),
+                          const SizedBox(height: 20),
 
-                      // Weekly emotional progress
-                      _buildEmotionalProgressCard(appState),
-                      const SizedBox(height: 20),
+                          // Weekly emotional progress
+                          _buildEmotionalProgressCard(appState),
+                          const SizedBox(height: 20),
 
-                      // Action buttons
-                      _buildActionButtons(appState),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+                          // Action buttons
+                          _buildActionButtons(appState),
+
+                          // Extra spacer to ensure content isn't hidden behind system UI
+                          SizedBox(height: bottomSafe),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _buildGreetingCard(AppStateProvider appState) {
-    final period = appState.getCurrentPeriod();
+    final period = appState.currentPeriodCached;
     final greeting = _greetingForPeriod(period);
     return Container(
       width: double.infinity,

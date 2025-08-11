@@ -153,202 +153,207 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Configuración'), centerTitle: true),
-      body: Consumer2<AppStateProvider, ThemeProvider>(
-        builder: (context, app, theme, _) {
-          final prefs = app.userPreferences;
-          // Ensure displayed text reflects the current format preference
-          for (final p in _periods) {
-            final raw = _rawTimes[p] ?? prefs.notificationTimes[p] ?? '';
-            final canon = _canonicalize(raw);
-            _rawTimes[p] = canon;
-            final display = canon.isEmpty ? '' : _formatDisplayTime(canon, app.use24hFormat);
-            if (_controllers[p]!.text != display) {
-              _controllers[p]!.text = display;
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: Consumer2<AppStateProvider, ThemeProvider>(
+          builder: (context, app, theme, _) {
+            final prefs = app.userPreferences;
+            // Ensure displayed text reflects the current format preference
+            for (final p in _periods) {
+              final raw = _rawTimes[p] ?? prefs.notificationTimes[p] ?? '';
+              final canon = _canonicalize(raw);
+              _rawTimes[p] = canon;
+              final display = canon.isEmpty ? '' : _formatDisplayTime(canon, app.use24hFormat);
+              if (_controllers[p]!.text != display) {
+                _controllers[p]!.text = display;
+              }
             }
-          }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                'General',
-                style: GoogleFonts.comfortaa(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+            final bottomSafe = MediaQuery.of(context).padding.bottom;
+            return ListView(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + (bottomSafe > 0 ? bottomSafe : 0) + 12),
+              children: [
+                Text(
+                  'General',
+                  style: GoogleFonts.comfortaa(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      title: const Text('Habilitar notificaciones'),
-                      value: prefs.notificationsEnabled,
-                      onChanged: (v) => app.toggleNotifications(v),
-                      secondary: const Icon(Icons.notifications_active_outlined),
-                    ),
-                    const Divider(height: 0),
-                    SwitchListTile(
-                      title: const Text('Formato de hora 24h'),
-                      subtitle: Text(app.use24hFormat ? '24h' : '12h AM/PM'),
-                      value: app.use24hFormat,
-                      onChanged: (v) => app.setUse24hFormat(v),
-                      secondary: const Icon(Icons.access_time),
-                    ),
-                    const Divider(height: 0),
-                    SwitchListTile(
-                      title: const Text('Modo oscuro'),
-                      value: theme.isDarkMode,
-                      onChanged: (_) => theme.toggleTheme(),
-                      secondary: const Icon(Icons.dark_mode_outlined),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              Text(
-                'Horarios diarios',
-                style: GoogleFonts.comfortaa(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                const SizedBox(height: 8),
+                Card(
                   child: Column(
                     children: [
-                      const ListTile(
-                        title: Text('Selecciona horas para cada periodo'),
-                        subtitle: Text('Consejo: toca una hora para cambiarla'),
-                        leading: Icon(Icons.schedule),
+                      SwitchListTile(
+                        title: const Text('Habilitar notificaciones'),
+                        value: prefs.notificationsEnabled,
+                        onChanged: (v) => app.toggleNotifications(v),
+                        secondary: const Icon(Icons.notifications_active_outlined),
                       ),
                       const Divider(height: 0),
-                      ..._periods.map((p) => _timeTile(app, p)),
-                      const SizedBox(height: 4),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            Builder(
-                              builder: (ctx) {
-                                return OutlinedButton.icon(
-                                  icon: const Icon(Icons.restore),
-                                  onPressed: () async {
-                                    final messenger = ScaffoldMessenger.of(ctx);
-                                    await app.resetNotificationTimesToDefault();
-                                    final defaults = app.userPreferences.notificationTimes;
-                                    if (!mounted) return;
-                                    setState(() {
-                                      for (final p in _periods) {
-                                        _rawTimes[p] = _canonicalize(defaults[p] ?? '');
-                                        _controllers[p]!.text = _rawTimes[p]!.isEmpty
-                                            ? ''
-                                            : _formatDisplayTime(_rawTimes[p]!, app.use24hFormat);
-                                      }
-                                    });
-                                    messenger.showSnackBar(
-                                      const SnackBar(content: Text('Horarios restablecidos')),
-                                    );
-                                  },
-                                  label: const Text('Restablecer'),
-                                  style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(0, 40),
-                                    foregroundColor: Theme.of(context).brightness == Brightness.light
-                                        ? Colors.red[700]
-                                        : Theme.of(context).colorScheme.primary,
-                                    side: BorderSide(
-                                      color: Theme.of(context).brightness == Brightness.light
-                                          ? Colors.red[700]!
-                                          : Theme.of(context).colorScheme.primary,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.save_outlined),
-                              onPressed: () => _saveTimes(app),
-                              label: const Text('Guardar'),
-                              style: ElevatedButton.styleFrom(
-                                minimumSize: const Size(0, 40),
-                              ),
-                            ),
-                          ],
-                        ),
+                      SwitchListTile(
+                        title: const Text('Formato de hora 24h'),
+                        subtitle: Text(app.use24hFormat ? '24h' : '12h AM/PM'),
+                        value: app.use24hFormat,
+                        onChanged: (v) => app.setUse24hFormat(v),
+                        secondary: const Icon(Icons.access_time),
+                      ),
+                      const Divider(height: 0),
+                      SwitchListTile(
+                        title: const Text('Modo oscuro'),
+                        value: theme.isDarkMode,
+                        onChanged: (_) => theme.toggleTheme(),
+                        secondary: const Icon(Icons.dark_mode_outlined),
                       ),
                     ],
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 16),
-              Builder(
-                builder: (ctx) {
-                  final messenger = ScaffoldMessenger.of(ctx);
-                  final appProv = context.read<AppStateProvider>();
-                  final themeProv = context.read<ThemeProvider>();
-                  return ElevatedButton.icon(
-                    icon: const Icon(Icons.settings_backup_restore),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).brightness == Brightness.light
-                          ? Colors.red[700]
-                          : Theme.of(context).colorScheme.errorContainer,
-                      foregroundColor: Theme.of(context).brightness == Brightness.light
-                          ? Colors.white
-                          : Theme.of(context).colorScheme.onErrorContainer,
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    onPressed: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: ctx,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Restablecer ajustes'),
-                          content: const Text(
-                            'Esto restaurará todos los ajustes a sus valores estándar (notificaciones, formato de hora, horarios y tema). Tus datos no se borrarán.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancelar'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Restablecer'),
-                            ),
-                          ],
+                const SizedBox(height: 16),
+                Text(
+                  'Horarios diarios',
+                  style: GoogleFonts.comfortaa(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      children: [
+                        const ListTile(
+                          title: Text('Selecciona horas para cada periodo'),
+                          subtitle: Text('Consejo: toca una hora para cambiarla'),
+                          leading: Icon(Icons.schedule),
                         ),
-                      );
-                      if (confirmed == true) {
-                        await appProv.resetAllSettingsToDefault();
-                        await themeProv.setDarkMode(false);
-                        if (!mounted) return;
-                        setState(() {
-                          for (final p in _periods) {
-                            final raw = appProv.userPreferences.notificationTimes[p] ?? '';
-                            final canon = _canonicalize(raw);
-                            _rawTimes[p] = canon;
-                            _controllers[p]!.text = canon.isEmpty
-                                ? ''
-                                : _formatDisplayTime(canon, appProv.use24hFormat);
-                          }
-                        });
-                        messenger.showSnackBar(
-                          const SnackBar(content: Text('Ajustes restablecidos a estándar')),
+                        const Divider(height: 0),
+                        ..._periods.map((p) => _timeTile(app, p)),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              Builder(
+                                builder: (ctx) {
+                                  return OutlinedButton.icon(
+                                    icon: const Icon(Icons.restore),
+                                    onPressed: () async {
+                                      final messenger = ScaffoldMessenger.of(ctx);
+                                      await app.resetNotificationTimesToDefault();
+                                      final defaults = app.userPreferences.notificationTimes;
+                                      if (!mounted) return;
+                                      setState(() {
+                                        for (final p in _periods) {
+                                          _rawTimes[p] = _canonicalize(defaults[p] ?? '');
+                                          _controllers[p]!.text = _rawTimes[p]!.isEmpty
+                                              ? ''
+                                              : _formatDisplayTime(_rawTimes[p]!, app.use24hFormat);
+                                        }
+                                      });
+                                      messenger.showSnackBar(
+                                        const SnackBar(content: Text('Horarios restablecidos')),
+                                      );
+                                    },
+                                    label: const Text('Restablecer'),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 40),
+                                      foregroundColor: Theme.of(context).brightness == Brightness.light
+                                          ? Colors.red[700]
+                                          : Theme.of(context).colorScheme.primary,
+                                      side: BorderSide(
+                                        color: Theme.of(context).brightness == Brightness.light
+                                            ? Colors.red[700]!
+                                            : Theme.of(context).colorScheme.primary,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.save_outlined),
+                                onPressed: () => _saveTimes(app),
+                                label: const Text('Guardar'),
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(0, 40),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+                Builder(
+                  builder: (ctx) {
+                    final messenger = ScaffoldMessenger.of(ctx);
+                    final appProv = context.read<AppStateProvider>();
+                    final themeProv = context.read<ThemeProvider>();
+                    return ElevatedButton.icon(
+                      icon: const Icon(Icons.settings_backup_restore),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).brightness == Brightness.light
+                            ? Colors.red[700]
+                            : Theme.of(context).colorScheme.errorContainer,
+                        foregroundColor: Theme.of(context).brightness == Brightness.light
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onErrorContainer,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: ctx,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Restablecer ajustes'),
+                            content: const Text(
+                              'Esto restaurará todos los ajustes a sus valores estándar (notificaciones, formato de hora, horarios y tema). Tus datos no se borrarán.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Restablecer'),
+                              ),
+                            ],
+                          ),
                         );
-                      }
-                    },
-                    label: const Text('Restablecer ajustes'),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
-          );
-        },
+                        if (confirmed == true) {
+                          await appProv.resetAllSettingsToDefault();
+                          await themeProv.setDarkMode(false);
+                          if (!mounted) return;
+                          setState(() {
+                            for (final p in _periods) {
+                              final raw = appProv.userPreferences.notificationTimes[p] ?? '';
+                              final canon = _canonicalize(raw);
+                              _rawTimes[p] = canon;
+                              _controllers[p]!.text = canon.isEmpty
+                                  ? ''
+                                  : _formatDisplayTime(canon, appProv.use24hFormat);
+                            }
+                          });
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Ajustes restablecidos a estándar')),
+                          );
+                        }
+                      },
+                      label: const Text('Restablecer ajustes'),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

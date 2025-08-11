@@ -69,6 +69,9 @@ dependencies:
   intl_utils: ^2.8.11
   flutter_timezone: ^4.1.1
 
+  # Background tasks (Android) for daily rescheduling
+  workmanager: ^0.9.0+2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

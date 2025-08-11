@@ -25,7 +25,11 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
-      body: _buildBody(),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: _buildBody(),
+      ),
     );
   }
 
@@ -48,6 +52,7 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
 
   /// Construye el cuerpo principal con el PageView
   Widget _buildBody() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return Column(
       children: [
         Expanded(
@@ -68,16 +73,19 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
           ),
         ),
         _buildPageIndicator(),
-        _buildNavigationButtons(),
-        const SizedBox(height: 20),
+        Padding(
+          padding: EdgeInsets.only(bottom: bottomSafe > 0 ? bottomSafe : 12),
+          child: _buildNavigationButtons(),
+        ),
       ],
     );
   }
 
   /// Construye la primera página - introducción
   Widget _buildPage1() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafe),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -130,8 +138,9 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
 
   /// Construye la segunda página sobre mensajes
   Widget _buildPage2() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafe),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -193,8 +202,9 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
 
   /// Construye la tercera página sobre el seguimiento del ánimo
   Widget _buildPage3() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafe),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -278,8 +288,9 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
 
   /// Construye la cuarta página sobre el jardín emocional
   Widget _buildPage4() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafe),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -340,8 +351,9 @@ class _HowItWorksScreenState extends State<HowItWorksScreen> {
 
   /// Construye la quinta página sobre el progreso
   Widget _buildPage5() {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomSafe),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

@@ -87,7 +87,7 @@ class _NoopNotificationService implements NotificationService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<Widget> _buildApp() async {
+  Future<Widget> buildApp() async {
     SharedPreferences.setMockInitialValues({});
     final sl = ServiceLocator();
     sl.reset();
@@ -96,11 +96,6 @@ void main() {
     sl.register<MessageRepository>(_DummyMessageRepo());
     sl.register<SharedPreferencesUserRepository>(SharedPreferencesUserRepository());
     sl.register<NotificationService>(_NoopNotificationService());
-
-    // Increase viewport to avoid offscreen taps
-    final binding = TestWidgetsFlutterBinding.ensureInitialized();
-    binding.window.physicalSizeTestValue = const Size(1080, 1920);
-    binding.window.devicePixelRatioTestValue = 1.0;
 
     return MultiProvider(
       providers: [
@@ -111,14 +106,12 @@ void main() {
     );
   }
 
-  // Prefer widgetWithText to locate the actual button widget that contains the label
-  Finder _saveButton() => find.widgetWithText(ElevatedButton, 'Guardar');
-  Finder _resetButton() => find.widgetWithText(OutlinedButton, 'Restablecer');
+  // Prefer finding by visible text label directly
+  Finder saveButton() => find.text('Guardar');
+  Finder resetButton() => find.text('Restablecer');
 
-  Future<void> _scrollToAndTap(WidgetTester tester, Finder buttonFinder) async {
-    // Scroll the primary scrollable until the button is visible
-    final scrollableFinder = find.byType(Scrollable).first;
-    await tester.scrollUntilVisible(buttonFinder, 200, scrollable: scrollableFinder);
+  Future<void> scrollToAndTap(WidgetTester tester, Finder buttonFinder) async {
+    await tester.ensureVisible(buttonFinder);
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(buttonFinder, findsOneWidget);
     await tester.tap(buttonFinder);
@@ -126,24 +119,39 @@ void main() {
   }
 
   testWidgets('Guardar horarios no muestra error con 24h y 12h', (tester) async {
-    final app = await _buildApp();
+    // Set a larger viewport using modern API and reset after test
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final app = await buildApp();
     await tester.pumpWidget(app);
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
     expect(find.text('Horarios diarios'), findsOneWidget);
 
-    await _scrollToAndTap(tester, _saveButton());
+    await scrollToAndTap(tester, saveButton());
 
     expect(find.textContaining('Formato HH:mm'), findsNothing);
   });
 
   testWidgets('Restablecer y Guardar no muestran errores', (tester) async {
-    final app = await _buildApp();
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final app = await buildApp();
     await tester.pumpWidget(app);
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-    await _scrollToAndTap(tester, _resetButton());
-    await _scrollToAndTap(tester, _saveButton());
+    await scrollToAndTap(tester, resetButton());
+    await scrollToAndTap(tester, saveButton());
 
     expect(find.textContaining('Formato HH:mm'), findsNothing);
   });

@@ -48,10 +48,14 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen>
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
-      body: Consumer<AppStateProvider>(
-        builder: (context, appState, child) {
-          return _buildBody(appState);
-        },
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: Consumer<AppStateProvider>(
+          builder: (context, appState, child) {
+            return _buildBody(appState);
+          },
+        ),
       ),
     );
   }
@@ -77,9 +81,10 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen>
   Widget _buildBody(AppStateProvider appState) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final bottomSafe = MediaQuery.of(context).padding.bottom;
         return SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomSafe + 12),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
             child: Column(
@@ -89,6 +94,8 @@ class _MoodTrackerScreenState extends State<MoodTrackerScreen>
                 _buildMoodStatsCard(appState),
                 const SizedBox(height: 24),
                 _buildMoodSelector(appState),
+                // Extra espacio para no quedar pegado a la UI del sistema
+                SizedBox(height: bottomSafe),
               ],
             ),
           ),

@@ -49,7 +49,7 @@ class UserPreferences {
         'noche': '20:30',
         'madrugada': '23:30',
       },
-      use24hFormat: true,
+      use24hFormat: false,
     );
   }
 
@@ -99,15 +99,15 @@ class UserPreferences {
       ),
       notificationTimes:
           (json['notificationTimes'] as Map?)?.map(
-            (k, v) => MapEntry(k.toString(), v.toString()),
-          ) ??
-          const {
-            'mañana': '08:30',
-            'tarde': '13:00',
-            'noche': '20:30',
-            'madrugada': '23:30',
-          },
-      use24hFormat: json['use24hFormat'] ?? true,
+                (k, v) => MapEntry(k.toString(), v.toString()),
+              ) ??
+              const {
+                'mañana': '08:30',
+                'tarde': '13:00',
+                'noche': '20:30',
+                'madrugada': '23:30',
+              },
+      use24hFormat: json['use24hFormat'] ?? false,
     );
   }
 

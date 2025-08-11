@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import '../domain/repositories/repositories.dart';
 import '../domain/entities/plant_growth.dart' as domain;
@@ -118,6 +120,10 @@ class AppStateProvider extends ChangeNotifier {
 
       // Ensure plant reflects only today's entries at startup
       await _recalculatePlantFromToday();
+
+      // Cache initial period and start ticker
+      _lastPeriod = getCurrentPeriod();
+      _startPeriodTicker();
 
       // Preload current message for smoother UI using configured periods
       try {
@@ -354,6 +360,7 @@ class AppStateProvider extends ChangeNotifier {
 
   /// Update a specific notification time (HH:mm)
   Future<void> updateNotificationTime(String periodKey, String hhmm) async {
+    final prevPeriod = getCurrentPeriod();
     final updated = Map<String, String>.from(
       _userPreferences.notificationTimes,
     );
@@ -364,23 +371,41 @@ class AppStateProvider extends ChangeNotifier {
     }
     // Ensure the currently shown message reflects the new period immediately
     await refreshCurrentMessage();
+
+    // NEW: Update cache/boundary and notify instantly if the period changed due to this update
+    final newPeriod = getCurrentPeriod();
+    _lastPeriod = newPeriod;
+    _scheduleNextPeriodBoundaryCheck();
+    if (_userPreferences.notificationsEnabled && Platform.isAndroid && newPeriod != prevPeriod) {
+      try {
+        final msg = currentMessageNotifier.value ?? await getCurrentMessage();
+        await _notificationService.showInstantNotification('Love Garden 💌', msg.content);
+      } catch (_) {}
+    }
   }
 
   /// Bulk update notification times
   Future<void> updateNotificationTimes(Map<String, String> times) async {
+    final prevPeriod = getCurrentPeriod();
     await _updateUserPreference(notificationTimes: times);
     if (_userPreferences.notificationsEnabled) {
       await rescheduleDailyMessages();
     }
+    // Update cached period in case the new times move the current instant into another period
+    final newPeriod = getCurrentPeriod();
+    _lastPeriod = newPeriod;
     await refreshCurrentMessage();
-  }
-
-  /// Toggle 24h time display preference
-  Future<void> setUse24hFormat(bool value) async {
-    await _updateUserPreference(use24hFormat: value);
+    _scheduleNextPeriodBoundaryCheck();
+    if (_userPreferences.notificationsEnabled && Platform.isAndroid && newPeriod != prevPeriod) {
+      try {
+        final msg = currentMessageNotifier.value ?? await getCurrentMessage();
+        await _notificationService.showInstantNotification('Love Garden 💌', msg.content);
+      } catch (_) {}
+    }
   }
 
   Future<void> resetNotificationTimesToDefault() async {
+    final prevPeriod = getCurrentPeriod();
     const defaults = {
       'mañana': '08:30',
       'tarde': '13:00',
@@ -391,11 +416,21 @@ class AppStateProvider extends ChangeNotifier {
     if (_userPreferences.notificationsEnabled) {
       await rescheduleDailyMessages();
     }
+    final newPeriod = getCurrentPeriod();
+    _lastPeriod = newPeriod;
     await refreshCurrentMessage();
+    _scheduleNextPeriodBoundaryCheck();
+    if (_userPreferences.notificationsEnabled && Platform.isAndroid && newPeriod != prevPeriod) {
+      try {
+        final msg = currentMessageNotifier.value ?? await getCurrentMessage();
+        await _notificationService.showInstantNotification('Love Garden 💌', msg.content);
+      } catch (_) {}
+    }
   }
 
   /// Reset all settings to default values without deleting user data
   Future<void> resetAllSettingsToDefault() async {
+    final prevPeriod = getCurrentPeriod();
     const defaultTimes = {
       'mañana': '08:30',
       'tarde': '13:00',
@@ -405,12 +440,15 @@ class AppStateProvider extends ChangeNotifier {
 
     _userPreferences = _userPreferences.copyWith(
       notificationsEnabled: true,
-      use24hFormat: true,
+      use24hFormat: false,
       notificationTimes: defaultTimes,
       currentMessageIndex: 0,
       lastUpdated: DateTime.now(),
     );
     await _userRepository.saveUserPreferences(_userPreferences);
+    // Update cached period immediately
+    final newPeriod = getCurrentPeriod();
+    _lastPeriod = newPeriod;
     notifyListeners();
 
     if (_userPreferences.notificationsEnabled) {
@@ -418,6 +456,18 @@ class AppStateProvider extends ChangeNotifier {
       await rescheduleDailyMessages();
     }
     await refreshCurrentMessage();
+    _scheduleNextPeriodBoundaryCheck();
+    if (_userPreferences.notificationsEnabled && Platform.isAndroid && newPeriod != prevPeriod) {
+      try {
+        final msg = currentMessageNotifier.value ?? await getCurrentMessage();
+        await _notificationService.showInstantNotification('Love Garden 💌', msg.content);
+      } catch (_) {}
+    }
+  }
+
+  /// Toggle 24h time display preference
+  Future<void> setUse24hFormat(bool value) async {
+    await _updateUserPreference(use24hFormat: value);
   }
 
   /// Internal helper to update and persist user preferences
@@ -536,5 +586,148 @@ class AppStateProvider extends ChangeNotifier {
       debugPrint('Error clearing all data: $e');
       rethrow;
     }
+  }
+
+  Timer? _periodTimer;
+
+  void _startPeriodTicker() {
+    // Deprecated periodic ticker replaced by boundary-based scheduling
+    _scheduleNextPeriodBoundaryCheck();
+  }
+
+  DateTime _todayAt(int h, int m) {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day, h, m);
+  }
+
+  void _scheduleNextPeriodBoundaryCheck() {
+    _periodTimer?.cancel();
+    final next = _nextPeriodBoundaryDateTime();
+    if (next == null) return;
+    final now = DateTime.now();
+    final delay = next.isAfter(now) ? next.difference(now) : const Duration(minutes: 1);
+    _periodTimer = Timer(delay, () async {
+      await checkPeriodAndRefresh();
+      // Chain next boundary
+      _scheduleNextPeriodBoundaryCheck();
+    });
+  }
+
+  DateTime? _nextPeriodBoundaryDateTime() {
+    // Boundaries are the start times of each period in order: mañana, tarde, noche, madrugada(next day -> mañana)
+    DateTime todayAt(int h, int m) {
+      final n = DateTime.now();
+      return DateTime(n.year, n.month, n.day, h, m);
+    }
+
+    int toH(String s) => int.tryParse(s.split(':')[0]) ?? 0;
+    int toM(String s) => int.tryParse(s.split(':')[1]) ?? 0;
+
+    final t = _userPreferences.notificationTimes;
+    final morning = t['mañana'] ?? '08:30';
+    final afternoon = t['tarde'] ?? '13:00';
+    final evening = t['noche'] ?? '20:30';
+    final night = t['madrugada'] ?? '23:30';
+
+    final now = DateTime.now();
+    final candidates = <DateTime>[
+      todayAt(toH(morning), toM(morning)),
+      todayAt(toH(afternoon), toM(afternoon)),
+      todayAt(toH(evening), toM(evening)),
+      todayAt(toH(night), toM(night)),
+    ].where((dt) => dt.isAfter(now)).toList()
+      ..sort();
+
+    if (candidates.isNotEmpty) return candidates.first;
+
+    // Next is tomorrow's morning start
+    final tmw = todayAt(toH(morning), toM(morning)).add(const Duration(days: 1));
+    return tmw;
+  }
+
+  Future<void> checkPeriodAndRefresh({bool force = false}) async {
+    final current = getCurrentPeriod();
+    if (current != _lastPeriod) {
+      _lastPeriod = current;
+      await refreshCurrentMessage();
+      // Only show instant notification if not within ±2 min of scheduled (to avoid duplicate with scheduled)
+      if (_userPreferences.notificationsEnabled && Platform.isAndroid) {
+        final scheduled = _userPreferences.notificationTimes[current] ??
+            (current == 'mañana'
+                ? '08:30'
+                : current == 'tarde'
+                    ? '13:00'
+                    : current == 'noche'
+                        ? '20:30'
+                        : '23:30');
+        final parts = scheduled.split(':');
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        final scheduledDt = _todayAt(h, m);
+        final now = DateTime.now();
+        final diff = now.difference(scheduledDt).inSeconds.abs();
+        // Only show instant notification if not within 2 min of scheduled notification
+        if (diff > 120) {
+          try {
+            final msg = currentMessageNotifier.value ?? await getCurrentMessage();
+            await _notificationService.showInstantNotification('Love Garden 💌', msg.content);
+          } catch (_) {}
+        }
+      }
+      notifyListeners();
+      return;
+    }
+    if (force) {
+      await shuffleCurrentMessage();
+      notifyListeners();
+    }
+  }
+
+  /// Randomize the current visible message within the active period.
+  /// Useful to let users see a different message even if period didn't change.
+  Future<void> shuffleCurrentMessage() async {
+    try {
+      final period = getCurrentPeriod();
+      final list = _messageRepository.getMessagesForTimePeriod(period);
+      if (list.isEmpty) {
+        currentMessageNotifier.value = Message(
+          id: 'daily_${DateTime.now().day}_0',
+          content: '💌 Te envío un mensaje de amor para alegrar tu día.',
+          timeOfDay: period,
+          theme: 'Amor',
+        );
+        return;
+      }
+      // Pick a random index different from current when possible
+      final current = currentMessageNotifier.value;
+      final rnd = DateTime.now().millisecondsSinceEpoch;
+      var idx = rnd % list.length;
+      if (current != null && list.length > 1) {
+        final currentIdx = list.indexWhere((e) => e['content'] == current.content);
+        if (currentIdx == idx) {
+          idx = (idx + 1) % list.length;
+        }
+      }
+      final item = list[idx];
+      currentMessageNotifier.value = Message(
+        id: 'daily_${DateTime.now().day}_$idx',
+        content: item['content'] as String,
+        timeOfDay: period,
+        theme: item['theme'] as String,
+      );
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  String? _lastPeriod;
+
+  /// Exposes the currently cached period, kept in sync at startup and at boundaries.
+  String get currentPeriodCached => _lastPeriod ?? getCurrentPeriod();
+
+  @override
+  void dispose() {
+    _periodTimer?.cancel();
+    super.dispose();
   }
 }
