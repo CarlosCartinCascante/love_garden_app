@@ -44,13 +44,18 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
     super.dispose();
   }
 
-  // Returns localized greeting aligned with message periods
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) return '¡Buenos días! 🌅';
-    if (hour >= 12 && hour < 18) return '¡Buenas tardes! ☀️';
-    // Aligns with message periods: 18-22 "noche" and rest also night
-    return '¡Buenas noches! 🌙';
+  // Returns greeting for a given configured period
+  String _greetingForPeriod(String period) {
+    switch (period) {
+      case 'mañana':
+        return '¡Buenos días! 🌅';
+      case 'tarde':
+        return '¡Buenas tardes! ☀️';
+      case 'noche':
+      case 'madrugada':
+      default:
+        return '¡Buenas noches! 🌙';
+    }
   }
 
   // Formats date in Spanish
@@ -167,7 +172,7 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Greeting and date
-                      _buildGreetingCard(),
+                      _buildGreetingCard(appState),
                       const SizedBox(height: 20),
 
                       // Daily message
@@ -199,7 +204,9 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
     );
   }
 
-  Widget _buildGreetingCard() {
+  Widget _buildGreetingCard(AppStateProvider appState) {
+    final period = appState.getCurrentPeriod();
+    final greeting = _greetingForPeriod(period);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -212,7 +219,7 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Color(0xFF4CAF50).withAlpha(76),
+            color: const Color(0xFF4CAF50).withAlpha(76),
             blurRadius: 20,
             spreadRadius: 2,
             offset: const Offset(0, 5),
@@ -223,7 +230,7 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _getGreeting(),
+            greeting,
             style: GoogleFonts.comfortaa(
               fontSize: 24,
               fontWeight: FontWeight.bold,

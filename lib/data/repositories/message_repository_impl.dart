@@ -5,8 +5,10 @@ import '../../models/message.dart';
 /// Concrete implementation of MessageRepository using in-memory storage
 /// and SharedPreferences for persistence.
 ///
-/// This repository manages motivational messages and provides
-/// time-based message delivery.
+/// NOTE: Time period determination inside this repository is static
+/// (hour-based). The app should prefer AppStateProvider.getCurrentPeriod(),
+/// which respects user-configured times, and then call
+/// getMessagesForTimePeriod(period).
 class InMemoryMessageRepository implements MessageRepository {
   static const String _currentMessageIndexKey = 'current_message_index';
 

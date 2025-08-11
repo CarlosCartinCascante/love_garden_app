@@ -119,9 +119,9 @@ class AppStateProvider extends ChangeNotifier {
       // Ensure plant reflects only today's entries at startup
       await _recalculatePlantFromToday();
 
-      // Preload current message for smoother UI
+      // Preload current message for smoother UI using configured periods
       try {
-        final msg = await _messageRepository.getMessageByIndex();
+        final msg = await getCurrentMessage();
         currentMessageNotifier.value = msg;
       } catch (_) {}
 
@@ -245,30 +245,88 @@ class AppStateProvider extends ChangeNotifier {
   // Current cached message for smoother UI updates
   final ValueNotifier<Message?> currentMessageNotifier = ValueNotifier<Message?>(null);
 
-  /// Gets the current message based on time of day and current index
+  /// Returns the current period (mañana, tarde, noche, madrugada) based on
+  /// user-configured notificationTimes. Intervals are:
+  /// [mañana, tarde), [tarde, noche), [noche, madrugada), [madrugada, next mañana)
+  String getCurrentPeriod({DateTime? now}) {
+    final t = _userPreferences.notificationTimes;
+    String toKey(String k) => k; // keep for clarity
+
+    int toMins(String hhmm) {
+      final p = hhmm.split(':');
+      final h = int.tryParse(p[0]) ?? 0;
+      final m = int.tryParse(p[1]) ?? 0;
+      return h * 60 + m;
+    }
+
+    // Fallback defaults if missing
+    final morning = toMins(t[toKey('mañana')] ?? '08:30');
+    final afternoon = toMins(t[toKey('tarde')] ?? '13:00');
+    final evening = toMins(t[toKey('noche')] ?? '20:30');
+    final night = toMins(t[toKey('madrugada')] ?? '23:30');
+
+    final dt = now ?? DateTime.now();
+    final nowMins = dt.hour * 60 + dt.minute;
+
+    if (nowMins >= morning && nowMins < afternoon) return 'mañana';
+    if (nowMins >= afternoon && nowMins < evening) return 'tarde';
+    if (nowMins >= evening && nowMins < night) return 'noche';
+    // Wrap-around for madrugada
+    return 'madrugada';
+  }
+
+  /// Gets the current message based on configured period and current index
   Future<Message> getCurrentMessage() async {
     try {
-      final msg = await _messageRepository.getMessageByIndex();
-      return msg;
+      final period = getCurrentPeriod();
+      final list = _messageRepository.getMessagesForTimePeriod(period);
+      if (list.isEmpty) {
+        return Message(
+          id: 'daily_${DateTime.now().day}_0',
+          content: '💌 Te envío un mensaje de amor para alegrar tu día.',
+          timeOfDay: period,
+          theme: 'Amor',
+        );
+      }
+      final idx = (_userPreferences.currentMessageIndex) % list.length;
+      final item = list[idx];
+      return Message(
+        id: 'daily_${DateTime.now().day}_$idx',
+        content: item['content'] as String,
+        timeOfDay: period,
+        theme: item['theme'] as String,
+      );
     } catch (e) {
-      // Fallback to regular current message if async method fails
-      return _messageRepository.getCurrentMessage();
+      // Fallback in case of errors
+      final period = getCurrentPeriod();
+      return Message(
+        id: 'daily_${DateTime.now().day}_0',
+        content: '💌 Te envío un mensaje de amor para alegrar tu día.',
+        timeOfDay: period,
+        theme: 'Amor',
+      );
     }
   }
 
   /// Refreshes and caches the current message
   Future<void> refreshCurrentMessage() async {
     try {
-      final msg = await _messageRepository.getMessageByIndex();
+      final msg = await getCurrentMessage();
       currentMessageNotifier.value = msg;
     } catch (e) {
-      currentMessageNotifier.value = _messageRepository.getCurrentMessage();
+      final period = getCurrentPeriod();
+      currentMessageNotifier.value = Message(
+        id: 'daily_${DateTime.now().day}_0',
+        content: '💌 Te envío un mensaje de amor para alegrar tu día.',
+        timeOfDay: period,
+        theme: 'Amor',
+      );
     }
   }
 
   /// Advances to the next message with minimal UI rebuilds
   Future<void> nextMessage() async {
-    await _messageRepository.advanceToNextMessage();
+    // Only update our own index, repository index is not used for selection now
     await _updateMessageIndexSilently(_userPreferences.currentMessageIndex + 1);
     await refreshCurrentMessage();
     // No notifyListeners here to avoid rebuilding the whole screen
@@ -304,6 +362,8 @@ class AppStateProvider extends ChangeNotifier {
     if (_userPreferences.notificationsEnabled) {
       await rescheduleDailyMessages();
     }
+    // Ensure the currently shown message reflects the new period immediately
+    await refreshCurrentMessage();
   }
 
   /// Bulk update notification times
@@ -312,8 +372,10 @@ class AppStateProvider extends ChangeNotifier {
     if (_userPreferences.notificationsEnabled) {
       await rescheduleDailyMessages();
     }
+    await refreshCurrentMessage();
   }
 
+  /// Toggle 24h time display preference
   Future<void> setUse24hFormat(bool value) async {
     await _updateUserPreference(use24hFormat: value);
   }
@@ -329,6 +391,7 @@ class AppStateProvider extends ChangeNotifier {
     if (_userPreferences.notificationsEnabled) {
       await rescheduleDailyMessages();
     }
+    await refreshCurrentMessage();
   }
 
   /// Reset all settings to default values without deleting user data
@@ -354,6 +417,7 @@ class AppStateProvider extends ChangeNotifier {
       await _initializeNotifications();
       await rescheduleDailyMessages();
     }
+    await refreshCurrentMessage();
   }
 
   /// Internal helper to update and persist user preferences
