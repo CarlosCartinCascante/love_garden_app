@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/app_state_provider.dart';
 import '../providers/theme_provider.dart';
+import '../utils/time_utils.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -24,27 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final Map<String, String> _rawTimes = {};
 
   // Canonicalize any input to HH:mm (handles single-digit hours and AM/PM)
-  String _canonicalize(String? input) {
-    if (input == null) return '';
-    final s = input.trim();
-    if (s.isEmpty) return '';
-    final upper = s.toUpperCase();
-    final isAM = upper.contains('AM');
-    final isPM = upper.contains('PM');
-    // Keep only digits and colon to parse numbers safely (e.g., "30 PM" -> "30")
-    final cleaned = upper.replaceAll(RegExp(r'[^0-9:]'), '');
-    final parts = cleaned.split(':');
-    if (parts.length < 2) return '';
-    int h = int.tryParse(parts[0]) ?? 0;
-    int m = int.tryParse(parts[1].padRight(2, '0').substring(0, 2)) ?? 0;
-    if (isPM && h < 12) h += 12;
-    if (isAM && h == 12) h = 0;
-    if (h < 0) h = 0; if (h > 23) h = 23;
-    if (m < 0) m = 0; if (m > 59) m = 59;
-    final hh = h.toString().padLeft(2, '0');
-    final mm = m.toString().padLeft(2, '0');
-    return '$hh:$mm';
-  }
+  String _canonicalize(String? input) => TimeUtils.canonicalizeTime(input);
 
   @override
   void initState() {
@@ -70,12 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Validates HH:mm strings
-  String? _validateTime(String? value) {
-    if (value == null || value.isEmpty) return 'Requerido';
-    final regex = RegExp(r'^([01]\\d|2[0-3]):([0-5]\\d)$');
-    if (!regex.hasMatch(value)) return 'Formato HH:mm';
-    return null;
-  }
+  String? _validateTime(String? value) => TimeUtils.validateHHmm(value);
 
   String _formatDisplayTime(String hhmm, bool use24h) {
     final parts = hhmm.split(':');
