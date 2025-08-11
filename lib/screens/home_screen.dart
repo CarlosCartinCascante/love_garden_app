@@ -512,23 +512,39 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
                 moods: weeklyMoods,
               );
 
+              String abbreviateLabel(String label) {
+                switch (label) {
+                  case 'Increíble':
+                    return 'Incr.';
+                  case 'Terrible':
+                    return 'Terr.';
+                  case 'Genial':
+                    return 'Gen.';
+                  default:
+                    return label;
+                }
+              }
+
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: reps.entries.map((entry) {
-                  final dayName = entry.key;
+                  final dayName = entry.key; // Already abbreviated Lun..Dom
                   final mood = entry.value;
                   final emoji = mood?.emoji ?? '⭕';
                   final label = mood?.label ?? '-';
+                  final short = abbreviateLabel(label);
 
                   return Expanded(
                     child: Column(
                       children: [
-                        Text(emoji, style: const TextStyle(fontSize: 22)),
-                        const SizedBox(height: 4),
+                        Text(emoji, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(height: 2),
                         Text(
                           dayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.openSans(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.w600,
                             color: Theme.of(context)
                                 .colorScheme
@@ -538,9 +554,12 @@ class _FinalHomeScreenState extends State<FinalHomeScreen>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          label,
+                          short,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                           style: GoogleFonts.openSans(
-                            fontSize: 10,
+                            fontSize: 9,
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface

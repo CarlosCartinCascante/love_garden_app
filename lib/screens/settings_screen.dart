@@ -18,10 +18,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'mañana': 'Mañana',
     'tarde': 'Tarde',
     'noche': 'Noche',
-    'madrugada': 'Madrugada',
+    'madrugada': 'Madrug.',
   };
   // Stores canonical HH:mm times; TextFields show formatted view (12h/24h)
   final Map<String, String> _rawTimes = {};
+
+  // Canonicalize any input to HH:mm (handles single-digit hours and AM/PM)
+  String _canonicalize(String? input) {
+    if (input == null) return '';
+    final s = input.trim();
+    if (s.isEmpty) return '';
+    final upper = s.toUpperCase();
+    final isAM = upper.contains('AM');
+    final isPM = upper.contains('PM');
+    // Keep only digits and colon to parse numbers safely (e.g., "30 PM" -> "30")
+    final cleaned = upper.replaceAll(RegExp(r'[^0-9:]'), '');
+    final parts = cleaned.split(':');
+    if (parts.length < 2) return '';
+    int h = int.tryParse(parts[0]) ?? 0;
+    int m = int.tryParse(parts[1].padRight(2, '0').substring(0, 2)) ?? 0;
+    if (isPM && h < 12) h += 12;
+    if (isAM && h == 12) h = 0;
+    if (h < 0) h = 0; if (h > 23) h = 23;
+    if (m < 0) m = 0; if (m > 59) m = 59;
+    final hh = h.toString().padLeft(2, '0');
+    final mm = m.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
 
   @override
   void initState() {
@@ -29,10 +52,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = context.read<AppStateProvider>().userPreferences;
     final use24h = prefs.use24hFormat;
     for (final p in _periods) {
-      final raw = prefs.notificationTimes[p] ?? '';
-      _rawTimes[p] = raw;
+      final rawPref = prefs.notificationTimes[p] ?? '';
+      final canon = _canonicalize(rawPref);
+      _rawTimes[p] = canon;
       _controllers[p] = TextEditingController(
-        text: raw.isEmpty ? '' : _formatDisplayTime(raw, use24h),
+        text: canon.isEmpty ? '' : _formatDisplayTime(canon, use24h),
       );
     }
   }
@@ -115,6 +139,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveTimes(AppStateProvider app) async {
     final times = Map<String, String>.from(_rawTimes);
+    // Normalize to canonical HH:mm before validation/saving
+    for (final p in _periods) {
+      times[p] = _canonicalize(times[p]);
+    }
     // Validate canonical HH:mm values
     for (final p in _periods) {
       final v = times[p] ?? '';
@@ -155,8 +183,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Ensure displayed text reflects the current format preference
           for (final p in _periods) {
             final raw = _rawTimes[p] ?? prefs.notificationTimes[p] ?? '';
-            _rawTimes[p] = raw;
-            final display = raw.isEmpty ? '' : _formatDisplayTime(raw, app.use24hFormat);
+            final canon = _canonicalize(raw);
+            _rawTimes[p] = canon;
+            final display = canon.isEmpty ? '' : _formatDisplayTime(canon, app.use24hFormat);
             if (_controllers[p]!.text != display) {
               _controllers[p]!.text = display;
             }
@@ -224,7 +253,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 4),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Row(
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
                           children: [
                             Builder(
                               builder: (ctx) {
@@ -237,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     if (!mounted) return;
                                     setState(() {
                                       for (final p in _periods) {
-                                        _rawTimes[p] = defaults[p] ?? '';
+                                        _rawTimes[p] = _canonicalize(defaults[p] ?? '');
                                         _controllers[p]!.text = _rawTimes[p]!.isEmpty
                                             ? ''
                                             : _formatDisplayTime(_rawTimes[p]!, app.use24hFormat);
@@ -247,8 +278,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       const SnackBar(content: Text('Horarios restablecidos')),
                                     );
                                   },
-                                  label: const Text('Restablecer horarios'),
+                                  label: const Text('Restablecer'),
                                   style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 40),
                                     foregroundColor: Theme.of(context).brightness == Brightness.light
                                         ? Colors.red[700]
                                         : Theme.of(context).colorScheme.primary,
@@ -261,11 +293,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 );
                               },
                             ),
-                            const SizedBox(width: 12),
                             ElevatedButton.icon(
                               icon: const Icon(Icons.save_outlined),
                               onPressed: () => _saveTimes(app),
                               label: const Text('Guardar'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(0, 40),
+                              ),
                             ),
                           ],
                         ),
@@ -319,10 +353,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         setState(() {
                           for (final p in _periods) {
                             final raw = appProv.userPreferences.notificationTimes[p] ?? '';
-                            _rawTimes[p] = raw;
-                            _controllers[p]!.text = raw.isEmpty
+                            final canon = _canonicalize(raw);
+                            _rawTimes[p] = canon;
+                            _controllers[p]!.text = canon.isEmpty
                                 ? ''
-                                : _formatDisplayTime(raw, appProv.use24hFormat);
+                                : _formatDisplayTime(canon, appProv.use24hFormat);
                           }
                         });
                         messenger.showSnackBar(
@@ -343,13 +378,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _timeTile(AppStateProvider app, String key) {
+    final inputWidth = app.use24hFormat ? 110.0 : 140.0;
     return Column(
       children: [
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: const Icon(Icons.access_time),
-          title: Text(_labels[key] ?? key),
+          title: Text(
+            _labels[key] ?? key,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           trailing: SizedBox(
-            width: 140,
+            width: inputWidth,
             child: TextField(
               controller: _controllers[key],
               decoration: const InputDecoration(
